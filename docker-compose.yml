@@ -8,9 +8,9 @@ services:
   openmemory-mcp:
     image: mem0/openmemory-mcp
     build: api/
-    environment:
-      - USER
-      - API_KEY
+#    environment:
+#      - USER
+#      - API_KEY
     env_file:
       - api/.env
     depends_on:
@@ -28,9 +28,11 @@ services:
     image: mem0/openmemory-ui:latest
     ports:
       - "3000:3000"
-    environment:
-      - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
-      - NEXT_PUBLIC_USER_ID=${USER}
+#    environment:
+#      - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
+#      - NEXT_PUBLIC_USER_ID=${USER}
+    env_file:
+      - ui/.env
 
 volumes:
   mem0_storage:
