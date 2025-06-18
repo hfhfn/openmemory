@@ -40,6 +40,9 @@ COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 
 COPY --chown=nextjs:nodejs entrypoint.sh /home/nextjs/entrypoint.sh
+# Ensure entrypoint.sh uses Unix (LF) line endings, not Windows (CRLF)
+# This prevents "no such file or directory" errors if the script was edited on Windows.
+RUN sed -i 's/\r$//' /home/nextjs/entrypoint.sh
 RUN chmod +x /home/nextjs/entrypoint.sh
 
 USER nextjs
