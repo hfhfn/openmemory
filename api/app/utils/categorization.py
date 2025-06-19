@@ -61,10 +61,20 @@ def get_categories_for_memory(memory: str) -> List[str]:
 
         # parse the response
         content = response.choices[0].message.content
+        logging.warning(f"LLM原始返回内容: {content}")
         response_json = json.loads(content)
-        categories = response_json["categories"]
-        categories = [cat.strip().lower() for cat in categories]
-        # TODO: Validate categories later may be
+        if isinstance(response_json, list):
+            categories = [cat.strip().lower() for cat in response_json if isinstance(cat, str)]
+        elif isinstance(response_json, dict):
+            categories = response_json.get("categories", [])
+            if not isinstance(categories, list):
+                categories = []
+            categories = [cat.strip().lower() for cat in categories if isinstance(cat, str)]
+        else:
+            categories = []
+        if not categories:
+            categories = ["未分类"]
         return categories
     except Exception as e:
-        raise e
+        logging.warning(f"get_categories_for_memory error: {e}")
+        return ["未分类"]

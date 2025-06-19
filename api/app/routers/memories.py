@@ -256,17 +256,22 @@ async def create_memory(
         # Process Qdrant response
         if isinstance(qdrant_response, dict) and 'results' in qdrant_response:
             for result in qdrant_response['results']:
-                if result['event'] == 'ADD':
+                event_type = result.get('event')
+                # 优化提示：建议 LLM 输出格式，明确 event 字段要求
+                if event_type not in ['ADD', 'UPDATE', 'DELETE', 'NONE']:
+                    logging.warning(f"""LLM返回的 event 字段不规范: {event_type}，
+                    建议输出如下格式: {{\"memory\": [{{\"id\": \"0\", \"text\": \"xxx\", \"event\": \"ADD\"}}]}}。
+                    请确保 event 字段为 'ADD' 或 'UPDATE'，否则记忆将无法被正常写入。建议 LLM prompt 示例：你需要返回如下 
+                    JSON 格式：{{\"memory\":[{{\"id\":\"0\",\"text\":\"xxx\",\"event\":\"ADD\"}}]}}，其中 event 只能为 'ADD' 或 'UPDATE'。""")
+                if event_type in ['ADD', 'UPDATE']:
                     # Get the Qdrant-generated ID
                     memory_id = UUID(result['id'])
-                    
                     # Check if memory already exists
                     existing_memory = db.query(Memory).filter(Memory.id == memory_id).first()
-                    
                     if existing_memory:
                         # Update existing memory
                         existing_memory.state = MemoryState.active
-                        existing_memory.content = result['memory']
+                        existing_memory.content = result.get('memory', result.get('text', ''))
                         memory = existing_memory
                     else:
                         # Create memory with the EXACT SAME ID from Qdrant
@@ -274,12 +279,11 @@ async def create_memory(
                             id=memory_id,  # Use the same ID that Qdrant generated
                             user_id=user.id,
                             app_id=app_obj.id,
-                            content=result['memory'],
+                            content=result.get('memory', result.get('text', '')),
                             metadata_=request.metadata,
                             state=MemoryState.active
                         )
                         db.add(memory)
-                    
                     # Create history entry
                     history = MemoryStatusHistory(
                         memory_id=memory_id,
@@ -288,10 +292,33 @@ async def create_memory(
                         new_state=MemoryState.active
                     )
                     db.add(history)
-                    
                     db.commit()
                     db.refresh(memory)
                     return memory
+                else:
+                    # 兜底：只要有 text 或 memory 字段就强制写入
+                    if result.get('memory') or result.get('text'):
+                        logging.warning(f"未知event: {event_type}，自动兜底为ADD，内容: {result}")
+                        memory_id = UUID(result['id']) if 'id' in result else uuid.uuid4()
+                        memory = Memory(
+                            id=memory_id,
+                            user_id=user.id,
+                            app_id=app_obj.id,
+                            content=result.get('memory', result.get('text', '')),
+                            metadata_=request.metadata,
+                            state=MemoryState.active
+                        )
+                        db.add(memory)
+                        history = MemoryStatusHistory(
+                            memory_id=memory_id,
+                            changed_by=user.id,
+                            old_state=MemoryState.deleted,
+                            new_state=MemoryState.active
+                        )
+                        db.add(history)
+                        db.commit()
+                        db.refresh(memory)
+                        return memory
     except Exception as qdrant_error:
         logging.warning(f"Qdrant operation failed: {qdrant_error}.")
         # Return a json response with the error
