@@ -145,8 +145,7 @@ async def add_memories(text: str) -> str:
                             memory_id=memory_id,
                             changed_by=user.id,
                             old_state=original_state_for_history, # Could be None if it was an effective add
-                            new_state=MemoryState.active,
-                            notes="Memory content updated via UPDATE event." if memory and original_state_for_history else "Memory created locally due to UPDATE event for unknown ID."
+                            new_state=MemoryState.active
                         )
                         db.add(history)
 
