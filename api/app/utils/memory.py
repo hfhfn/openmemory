@@ -44,8 +44,8 @@ load_dotenv()
 _memory_client = None
 _config_hash = None
 
-OPENAI_PROVIDER = os.environ.get("OPENAI_PROVIDER")
-OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")
+OPENAI_PROVIDER = os.environ.get("OPENAI_PROVIDER", "openai") # Default to "openai"
+OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "") # Default to empty string
 OPENAI_BASE_URL = os.environ.get("OPENAI_BASE_URL", "https://api.openai.com/v1")
 OPENAI_MODEL = os.environ.get("OPENAI_MODEL", "gpt-4o-mini")
 
@@ -53,13 +53,15 @@ OPENAI_MODEL = os.environ.get("OPENAI_MODEL", "gpt-4o-mini")
 OPENAI_EMBEDDING_MODEL_BASE_URL = os.environ.get(
     "OPENAI_EMBEDDING_MODEL_BASE_URL", "https://api.openai.com/v1"
 )
+# Default OPENAI_EMBEDDING_MODEL_API_KEY to OPENAI_API_KEY if not set, then to empty string
+_default_openai_embed_key = OPENAI_API_KEY if OPENAI_API_KEY else ""
 OPENAI_EMBEDDING_MODEL_API_KEY = os.environ.get(
-    "OPENAI_EMBEDDING_MODEL_API_KEY", OPENAI_API_KEY
+    "OPENAI_EMBEDDING_MODEL_API_KEY", _default_openai_embed_key
 )
 OPENAI_EMBEDDING_MODEL = os.environ.get(
     "OPENAI_EMBEDDING_MODEL", "text-embedding-3-small"
 )
-OPENAI_EMBEDDING_MODEL_DIMS = int(os.environ.get("OPENAI_EMBEDDING_MODEL_DIMS", 1536))
+OPENAI_EMBEDDING_MODEL_DIMS = int(os.environ.get("OPENAI_EMBEDDING_MODEL_DIMS", "1536"))
 
 
 def _get_config_hash(config_dict):
@@ -160,17 +162,34 @@ def get_default_memory_config():
     """Get default memory client configuration with sensible defaults."""
 
     print(f"✅ Memory Configuration initialized:")
-    print(f"   📍 LLM Provider: {OPENAI_PROVIDER}")
+    print(f"   📦 Embedding Provider: OPENAI") # Hardcoded to OpenAI
+
+    # OpenAI Embedding Configuration
+    print(f"   🔵 OpenAI Embedding Configuration:")
+    print(f"      🔗 Base URL: {OPENAI_EMBEDDING_MODEL_BASE_URL}")
+    print(f"      🧠 Model Name: {OPENAI_EMBEDDING_MODEL}")
+    print(f"      📏 Model Dims: {OPENAI_EMBEDDING_MODEL_DIMS}")
+    print(
+        f"      🔑 API Key: {'***' + OPENAI_EMBEDDING_MODEL_API_KEY[-4:] if OPENAI_EMBEDDING_MODEL_API_KEY and len(OPENAI_EMBEDDING_MODEL_API_KEY) > 4 else '***'}"
+    )
+
+    embedder_config = {
+        "provider": "openai",
+        "config": {
+            "openai_base_url": OPENAI_EMBEDDING_MODEL_BASE_URL,
+            "api_key": OPENAI_EMBEDDING_MODEL_API_KEY,
+            "model": OPENAI_EMBEDDING_MODEL,
+            "embedding_dims": OPENAI_EMBEDDING_MODEL_DIMS,
+        },
+    }
+    vector_store_embedding_dims = OPENAI_EMBEDDING_MODEL_DIMS
+
+    print(f"   --- LLM Configuration ---")
+    print(f"   📍 LLM Provider: {OPENAI_PROVIDER}") # OPENAI_PROVIDER is still used for the LLM part
     print(f"   🎯 LLM Base URL: {OPENAI_BASE_URL}")
     print(f"   🤖 LLM Model: {OPENAI_MODEL}")
     print(
-        f"   🔑 LLM API Key: {'***' + OPENAI_API_KEY[-4:] if len(OPENAI_API_KEY) > 4 else '***'}"
-    )
-    print(f"   📍 Embedding Base URL: {OPENAI_EMBEDDING_MODEL_BASE_URL}")
-    print(f"   🎯 Embedding Model: {OPENAI_EMBEDDING_MODEL}")
-    print(f"   📊 Embedding Dims: {OPENAI_EMBEDDING_MODEL_DIMS}")
-    print(
-        f"   🔑 Embedding API Key: {'***' + OPENAI_EMBEDDING_MODEL_API_KEY[-4:] if len(OPENAI_EMBEDDING_MODEL_API_KEY) > 4 else '***'}"
+        f"   🔑 LLM API Key: {'***' + OPENAI_API_KEY[-4:] if OPENAI_API_KEY and len(OPENAI_API_KEY) > 4 else '***'}"
     )
 
     return {
@@ -180,7 +199,7 @@ def get_default_memory_config():
                 "collection_name": "openmemory",
                 "host": "mem0_store",
                 "port": 6333,
-                "embedding_model_dims": OPENAI_EMBEDDING_MODEL_DIMS,
+                "embedding_model_dims": vector_store_embedding_dims, # Uses OPENAI_EMBEDDING_MODEL_DIMS
             },
         },
         "llm": {
@@ -193,15 +212,7 @@ def get_default_memory_config():
                 "max_tokens": 2000,
             },
         },
-        "embedder": {
-            "provider": "openai",
-            "config": {
-                "openai_base_url": OPENAI_EMBEDDING_MODEL_BASE_URL,
-                "api_key": OPENAI_EMBEDDING_MODEL_API_KEY,
-                "model": OPENAI_EMBEDDING_MODEL,
-                "embedding_dims": OPENAI_EMBEDDING_MODEL_DIMS,
-            },
-        },
+        "embedder": embedder_config, # Uses OpenAI embedder config
         "version": "v1.1",
     }
 
