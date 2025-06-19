@@ -42,26 +42,28 @@ class ConfigSchema(BaseModel):
     mem0: Mem0Config
 
 def get_default_configuration():
-    """Get the default configuration with sensible defaults for LLM and embedder."""
+    """Get the default configuration structure with 'env:VAR_NAME' placeholders."""
     return {
         "openmemory": {
-            "custom_instructions": None
+            "custom_instructions": "env:OPENMEMORY_CUSTOM_INSTRUCTIONS"
         },
         "mem0": {
             "llm": {
                 "provider": "openai",
                 "config": {
-                    "model": "gpt-4o-mini",
+                    "model": "env:OPENAI_MODEL",
                     "temperature": 0.1,
                     "max_tokens": 2000,
-                    "api_key": "env:OPENAI_API_KEY"
+                    "api_key": "env:OPENAI_API_KEY",
+                    "openai_base_url": "env:OPENAI_BASE_URL"
                 }
             },
             "embedder": {
                 "provider": "openai",
                 "config": {
-                    "model": "text-embedding-3-small",
-                    "api_key": "env:OPENAI_API_KEY"
+                    "model": "env:OPENAI_EMBEDDING_MODEL",
+                    "api_key": "env:OPENAI_EMBEDDING_MODEL_API_KEY",
+                    "openai_base_url": "env:OPENAI_EMBEDDING_MODEL_BASE_URL"
                 }
             }
         }
