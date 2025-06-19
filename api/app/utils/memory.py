@@ -33,9 +33,12 @@ import hashlib
 import socket
 import platform
 
+from dotenv import load_dotenv
 from mem0 import Memory
 from app.database import SessionLocal
 from app.models import Config as ConfigModel
+
+load_dotenv()
 
 
 _memory_client = None
