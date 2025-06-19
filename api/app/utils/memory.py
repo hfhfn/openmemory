@@ -41,6 +41,7 @@ from app.models import Config as ConfigModel
 _memory_client = None
 _config_hash = None
 
+OPENAI_PROVIDER = os.environ.get("OPENAI_PROVIDER")
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")
 OPENAI_BASE_URL = os.environ.get("OPENAI_BASE_URL", "https://api.openai.com/v1")
 OPENAI_MODEL = os.environ.get("OPENAI_MODEL", "gpt-4o-mini")
@@ -156,7 +157,8 @@ def get_default_memory_config():
     """Get default memory client configuration with sensible defaults."""
 
     print(f"✅ Memory Configuration initialized:")
-    print(f"   📍 LLM Base URL: {OPENAI_BASE_URL}")
+    print(f"   📍 LLM Provider: {OPENAI_PROVIDER}")
+    print(f"   🎯 LLM Base URL: {OPENAI_BASE_URL}")
     print(f"   🤖 LLM Model: {OPENAI_MODEL}")
     print(
         f"   🔑 LLM API Key: {'***' + OPENAI_API_KEY[-4:] if len(OPENAI_API_KEY) > 4 else '***'}"
@@ -179,7 +181,7 @@ def get_default_memory_config():
             },
         },
         "llm": {
-            "provider": "openai",
+            "provider": OPENAI_PROVIDER,
             "config": {
                 "openai_base_url": OPENAI_BASE_URL,
                 "api_key": OPENAI_API_KEY,

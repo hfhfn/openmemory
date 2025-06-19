@@ -49,7 +49,7 @@ def get_default_configuration():
         },
         "mem0": {
             "llm": {
-                "provider": "openai",
+                "provider": "env:OPENAI_PROVIDER",
                 "config": {
                     "model": "env:OPENAI_MODEL",
                     "temperature": 0.1,
