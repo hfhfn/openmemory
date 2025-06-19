@@ -119,20 +119,55 @@ async def add_memories(text: str) -> str:
                         )
                         db.add(history)
 
+                    elif result['event'] == 'UPDATE':
+                        original_state_for_history = None
+                        if memory: # Memory exists locally
+                            original_state_for_history = memory.state
+                            memory.content = result['memory']
+                            memory.state = MemoryState.active
+                            memory.updated_at = datetime.datetime.now(datetime.UTC) # Assuming Memory model has updated_at
+                            logging.info(f"add_memories: Updated local memory ID {memory_id} based on UPDATE event.")
+                        else: # Memory does NOT exist locally - inconsistency
+                            logging.warning(f"add_memories: Mem0 reported UPDATE for unknown memory ID: {memory_id}. Creating it locally.")
+                            original_state_for_history = None # Effectively a new add
+                            memory = Memory(
+                                id=memory_id,
+                                user_id=user.id,
+                                app_id=app.id,
+                                content=result['memory'],
+                                state=MemoryState.active
+                                # created_at and updated_at will be set by DB defaults or model defaults if defined
+                            )
+                            db.add(memory)
+
+                        # Create history entry for the update or effective add
+                        history = MemoryStatusHistory(
+                            memory_id=memory_id,
+                            changed_by=user.id,
+                            old_state=original_state_for_history, # Could be None if it was an effective add
+                            new_state=MemoryState.active,
+                            notes="Memory content updated via UPDATE event." if memory and original_state_for_history else "Memory created locally due to UPDATE event for unknown ID."
+                        )
+                        db.add(history)
+
                     elif result['event'] == 'DELETE':
                         if memory:
+                            original_state_for_history = memory.state # Capture state before deleting
                             memory.state = MemoryState.deleted
                             memory.deleted_at = datetime.datetime.now(datetime.UTC)
                             # Create history entry
                             history = MemoryStatusHistory(
                                 memory_id=memory_id,
                                 changed_by=user.id,
-                                old_state=MemoryState.active,
+                                old_state=original_state_for_history, # Use captured state
                                 new_state=MemoryState.deleted
                             )
                             db.add(history)
+                        else:
+                            logging.warning(f"add_memories: Mem0 reported DELETE for unknown memory ID: {memory_id}. No local action taken other than logging.")
 
-                db.commit()
+
+                db.commit() # Commit once after processing all results
 
             return response
         finally:
@@ -276,54 +311,94 @@ async def list_memories() -> str:
             # Get or create user and app
             user, app = get_user_and_app(db, user_id=uid, app_id=client_name)
 
-            # Get all memories from Qdrant
+            # Get all memories
             memories = memory_client.get_all(user_id=uid)
-            print(f"[DEBUG] Qdrant get_all 返回: {memories}")
             filtered_memories = []
+
+            # --- Detailed logging for debugging ---
+            logging.info(f"list_memories: Type of 'memories' from get_all: {type(memories)}")
+            if isinstance(memories, dict):
+                logging.info(f"list_memories: Keys in 'memories' dict: {memories.keys()}")
+                if 'results' in memories and isinstance(memories['results'], list):
+                    logging.info(f"list_memories: Number of items in memories['results']: {len(memories['results'])}")
+                    if len(memories['results']) > 0 and isinstance(memories['results'][0], dict):
+                         logging.info(f"list_memories: First item ID in memories['results'] (if available): {memories['results'][0].get('id')}")
+                else:
+                    logging.info(f"list_memories: 'results' key not found in memories or is not a list.")
+            elif isinstance(memories, list):
+                logging.info(f"list_memories: Number of items in 'memories' list: {len(memories)}")
+                if len(memories) > 0 and isinstance(memories[0], dict):
+                    logging.info(f"list_memories: First item ID in 'memories' list (if available): {memories[0].get('id')}")
+            else:
+                logging.info(f"list_memories: Content of 'memories': {str(memories)[:500]}") # Log a snippet if not dict/list
+            # --- End detailed logging ---
 
             # Filter memories based on permissions
             user_memories = db.query(Memory).filter(Memory.user_id == user.id).all()
-            print(f"[DEBUG] MySQL user_memories 数量: {len(user_memories)}")
-            accessible_memory_ids = [memory.id for memory in user_memories if True]  # 临时全部放行
-            print(f"[DEBUG] accessible_memory_ids 数量: {len(accessible_memory_ids)}")
+            accessible_memory_ids = [memory.id for memory in user_memories if check_memory_access_permissions(db, memory, app.id)]
+            logging.info(f"list_memories: Found {len(accessible_memory_ids)} accessible_memory_ids for user {uid} and app {client_name}")
+
             if isinstance(memories, dict) and 'results' in memories:
-                for memory_data in memories['results']:
-                    if 'id' in memory_data:
-                        memory_id = uuid.UUID(memory_data['id'])
-                        if memory_id in accessible_memory_ids:
-                            # Create access log entry
-                            access_log = MemoryAccessLog(
-                                memory_id=memory_id,
-                                app_id=app.id,
-                                access_type="list",
-                                metadata_={
-                                    "hash": memory_data.get('hash')
-                                }
-                            )
-                            db.add(access_log)
-                            filtered_memories.append(memory_data)
-                db.commit()
+                # Ensure 'results' is a list before iterating
+                if isinstance(memories['results'], list):
+                    for memory_data_from_client in memories['results']:
+                        if isinstance(memory_data_from_client, dict) and 'id' in memory_data_from_client:
+                            memory_id_str = memory_data_from_client['id']
+                            try:
+                                memory_id = uuid.UUID(memory_id_str)
+                                is_accessible = memory_id in accessible_memory_ids
+                                logging.info(f"list_memories (dict format): Processing memory ID from get_all: {memory_id_str}. Found in accessible_ids: {is_accessible}")
+                                if is_accessible:
+                                    # Create access log entry
+                                    access_log = MemoryAccessLog(
+                                        memory_id=memory_id,
+                                        app_id=app.id,
+                                        access_type="list",
+                                        metadata_={
+                                            "hash": memory_data_from_client.get('hash')
+                                        }
+                                    )
+                                    db.add(access_log)
+                                    filtered_memories.append(memory_data_from_client)
+                            except ValueError:
+                                logging.warning(f"list_memories (dict format): Could not convert memory ID '{memory_id_str}' to UUID.")
+                        else:
+                            logging.warning(f"list_memories (dict format): memory_data_from_client is not a dict or 'id' key is missing: {memory_data_from_client}")
+                else:
+                    logging.warning(f"list_memories (dict format): memories['results'] is not a list. Type: {type(memories['results'])}")
+                db.commit() # Commit after processing all items in this block
+            elif isinstance(memories, list): # Older mem0 format or direct list
+                for memory_data_from_client in memories:
+                    if isinstance(memory_data_from_client, dict) and 'id' in memory_data_from_client:
+                        memory_id_str = memory_data_from_client['id']
+                        try:
+                            memory_id = uuid.UUID(memory_id_str)
+                            is_accessible = memory_id in accessible_memory_ids
+                            logging.info(f"list_memories (list format): Processing memory ID from get_all: {memory_id_str}. Found in accessible_ids: {is_accessible}")
+
+                            if is_accessible:
+                                # Create access log entry
+                                access_log = MemoryAccessLog(
+                                    memory_id=memory_id,
+                                    app_id=app.id,
+                                    access_type="list",
+                                    metadata_={
+                                        "hash": memory_data_from_client.get('hash')
+                                    }
+                                )
+                                db.add(access_log)
+                                filtered_memories.append(memory_data_from_client)
+                        except ValueError:
+                            logging.warning(f"list_memories (list format): Could not convert memory ID '{memory_id_str}' to UUID.")
+                    else:
+                        logging.warning(f"list_memories (list format): memory_data_from_client is not a dict or 'id' key is missing: {memory_data_from_client}")
+                db.commit() # Commit after processing all items in this block
             else:
-                for memory in memories:
-                    memory_id = uuid.UUID(memory['id'])
-                    memory_obj = db.query(Memory).filter(Memory.id == memory_id).first()
-                    if memory_obj:  # 临时全部放行
-                        # Create access log entry
-                        access_log = MemoryAccessLog(
-                            memory_id=memory_id,
-                            app_id=app.id,
-                            access_type="list",
-                            metadata_={
-                                "hash": memory.get('hash')
-                            }
-                        )
-                        db.add(access_log)
-                        filtered_memories.append(memory)
-                db.commit()
-            print(f"[DEBUG] Qdrant过滤后数量: {len(filtered_memories)}")
+                logging.warning(f"list_memories: 'memories' from get_all is neither a dict with 'results' nor a direct list. Type: {type(memories)}")
+            logging.info(f"[DEBUG] Qdrant过滤后数量: {len(filtered_memories)}")
             # 如果 Qdrant 没有，查 MySQL
             if not filtered_memories:
-                print("[DEBUG] Qdrant无数据，查MySQL兜底")
+                logging.info("[DEBUG] Qdrant无数据，查MySQL兜底")
                 for memory in user_memories:
                     filtered_memories.append({
                         "id": str(memory.id),
@@ -333,7 +408,7 @@ async def list_memories() -> str:
                         "updated_at": memory.updated_at.isoformat() if memory.updated_at else None,
                         "score": None,
                     })
-            print(f"[DEBUG] 最终返回数量: {len(filtered_memories)}")
+            logging.info(f"[DEBUG] 最终返回数量: {len(filtered_memories)}")
             return json.dumps(filtered_memories, indent=2, ensure_ascii=False)
         finally:
             db.close()
