@@ -42,6 +42,15 @@ make up
 
 > ✅ 你可以在 `http://localhost:8765/docs` 查看 API 文档。
 
+
+---
+
+### ✅ MCP 配置说明
+- MCP 的 SSE 接口：http://localhost:8765/mcp/openmemory/sse/user
+- MCP 前端界面：在 http://localhost:3000 可以访问 MCP 的前端界面
+  - 在那里，你可以查看各个 MCP 客户端的配置命令
+  - 并且可以查看 Memories 存储的数据。
+
 ---
 
 ### ⏹️ 停止并清理服务
