@@ -32,7 +32,9 @@ up:
 
 down:
 	docker compose down -v
-	rm -f api/openmemory.db
+# 	rm -f api/openmemory.db
+    # windows删除文件，/Q 是 Windows 下静默删除文件的命令。
+	del /Q api\openmemory.db
 
 logs:
 	docker compose logs -f
