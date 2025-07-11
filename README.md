@@ -1,124 +1,85 @@
 # OpenMemory
 
-OpenMemory is your personal memory layer for LLMs - private, portable, and open-source. Your memories live locally, giving you complete control over your data. Build AI applications with personalized memories while keeping your data secure.
+OpenMemory 是一个为 LLM 提供记忆能力的开源本地化解决方案，支持个性化记忆存储、查询和管理。
 
-![OpenMemory](https://github.com/user-attachments/assets/3c701757-ad82-4afa-bfbe-e049c2b4320b)
+## 🚀 快速开始
 
-## Easy Setup
+### ✅ 前提条件
 
-### Prerequisites
-- Docker
-- OpenAI API Key
+- [Docker](https://www.docker.com/)
+- [Docker Compose](https://docs.docker.com/compose/)
+- Windows（WSL）或 Unix/Linux
+- 设置好 API 密钥
 
-You can quickly run OpenMemory by running the following command:
+---
+
+### 🔧 初始化环境变量
+
+如果你没有 [.env](file://D:\AIGC\code\openmemory\api\alembic\env.py#L0-L0) 文件，请先执行：
+
+```bash 
+make env
+```
+然后编辑以下文件，设置你的 API Key 和用户 ID：
+
+- `api/.env`
+- `ui/.env`
+
+---
+
+### ▶️ 启动服务
+
+使用以下命令一键启动所有服务：
 
 ```bash
-curl -sL https://raw.githubusercontent.com/mem0ai/mem0/main/openmemory/run.sh | bash
+make up
 ```
 
-You should set the `OPENAI_API_KEY` as a global environment variable:
+这将启动以下组件：
+- **MCP Server**: `http://localhost:8765`
+- **Qdrant Vector Store**: `http://localhost:6333`
+- **前端 UI**（可选）: `http://localhost:3000`
+
+> ✅ 你可以在 `http://localhost:8765/docs` 查看 API 文档。
+
+---
+
+### ⏹️ 停止并清理服务
+
+使用以下命令关闭所有容器并清理资源：
 
 ```bash
-export OPENAI_API_KEY=your_api_key
+make down
 ```
 
-You can also set the `OPENAI_API_KEY` as a parameter to the script:
+> 💡 此操作会删除所有容器和网络，默认不删除持久化数据（如数据库文件），但你可以根据需求在 Makefile 中扩展行为。
 
-```bash
-curl -sL https://raw.githubusercontent.com/mem0ai/mem0/main/openmemory/run.sh | OPENAI_API_KEY=your_api_key bash
-```
+---
 
-## Prerequisites
+## 📝 其他常用命令（可选）
 
-- Docker and Docker Compose
-- Python 3.9+ (for backend development)
-- Node.js (for frontend development)
-- OpenAI API Key (required for LLM interactions, run `cp api/.env.example api/.env` then change **OPENAI_API_KEY** to yours)
+| 命令           | 描述                        |
+|----------------|-----------------------------|
+| `make build`   | 构建 Docker 镜像             |
+| `make logs`    | 查看服务日志                 |
+| `make shell`   | 进入后端容器进行调试         |
+| `make migrate` | 手动运行数据库迁移脚本       |
 
-## Quickstart
+---
 
-### 1. Set Up Environment Variables
+## 🧠 小贴士
 
-Before running the project, you need to configure environment variables for both the API and the UI.
+- **(当前已适配 Windows，Linux执行需自行修改)** 如果你是 **Windows 用户**，请确保 [Makefile](file://D:\AIGC\code\openmemory\Makefile) 中的删除命令已适配 Windows，例如使用 `del /Q api\openmemory.db` 而不是 `rm -f`。
+- 如果你在开发模式下需要重新加载代码，可以使用 `make down && make up` 重启服务。
 
-You can do this in one of the following ways:
+---
 
-- **Manually**:  
-  Create a `.env` file in each of the following directories:
-  - `/api/.env`
-  - `/ui/.env`
+## ❤️ 欢迎贡献
 
-- **Using `.env.example` files**:  
-  Copy and rename the example files:
+我们欢迎任何形式的贡献：文档优化、功能改进、测试反馈等。只需 Fork 并提交 PR！
 
-  ```bash
-  cp api/.env.example api/.env
-  cp ui/.env.example ui/.env
-  ```
-
- - **Using Makefile** (if supported):  
-    Run:
-  
-   ```bash
-   make env
-   ```
-- #### Example `/api/.env`
-
-```env
-OPENAI_API_KEY=sk-xxx
-USER=<user-id> # The User Id you want to associate the memories with 
-```
-- #### Example `/ui/.env`
-
-```env
-NEXT_PUBLIC_API_URL=http://localhost:8765
-NEXT_PUBLIC_USER_ID=<user-id> # Same as the user id for environment variable in api
-```
-
-### 2. Build and Run the Project
-You can run the project using the following two commands:
-```bash
-make build # builds the mcp server and ui
-make up  # runs openmemory mcp server and ui
-```
-
-After running these commands, you will have:
-- OpenMemory MCP server running at: http://localhost:8765 (API documentation available at http://localhost:8765/docs)
-- OpenMemory UI running at: http://localhost:3000
-
-#### UI not working on `localhost:3000`?
-
-If the UI does not start properly on [http://localhost:3000](http://localhost:3000), try running it manually:
-
-```bash
-cd ui
-pnpm install
-pnpm dev
-```
-
-
-## Project Structure
-
-- `api/` - Backend APIs + MCP server
-- `ui/` - Frontend React application
-
-## Contributing
-
-We are a team of developers passionate about the future of AI and open-source software. With years of experience in both fields, we believe in the power of community-driven development and are excited to build tools that make AI more accessible and personalized.
-
-We welcome all forms of contributions:
-- Bug reports and feature requests
-- Documentation improvements
-- Code contributions
-- Testing and feedback
-- Community support
-
-How to contribute:
-
-1. Fork the repository
-2. Create your feature branch (`git checkout -b openmemory/feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add some amazing feature'`)
-4. Push to the branch (`git push origin openmemory/feature/amazing-feature`)
-5. Open a Pull Request
-
-Join us in building the future of AI memory management! Your contributions help make OpenMemory better for everyone.
+- Fork 项目
+- 创建新分支：`git checkout -b feature/your-feature-name`
+- 提交更改：`git commit -m '描述你的改动'`
+- 推送到远程：`git push origin feature/your-feature-name`
+- 提交 Pull Request
